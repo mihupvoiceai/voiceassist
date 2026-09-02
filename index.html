@@ -1292,7 +1292,7 @@
         // NOTE: this now talks to a Cloudflare Worker proxy, which holds the real Gemini
         // API key server-side and forwards the request. No key ever lives in this page.
         // Replace with YOUR worker's URL after deploying (see cloudflare-worker.js).
-        const AI_PROXY_BASE = 'https://YOUR-WORKER-SUBDOMAIN.workers.dev';
+        const AI_PROXY_BASE = 'https://techline-mihup-proxy.bhaskar-b2e.workers.dev';
         const AI_ENDPOINT = (model) => `${AI_PROXY_BASE}/api/gemini/${model}`;
 
         // --- State ---
