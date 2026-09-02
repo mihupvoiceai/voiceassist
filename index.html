@@ -1289,26 +1289,23 @@
 
     <script>
         // --- Config ---
-        const WS_URL = 'ws://122.176.24.165:6898/api/v1/asr/ws';
         // NOTE: this now talks to a Cloudflare Worker proxy, which holds the real Gemini
         // API key server-side and forwards the request. No key ever lives in this page.
         // Replace with YOUR worker's URL after deploying (see cloudflare-worker.js).
-        const AI_PROXY_BASE = 'https://techline-mihup-proxy.bhaskar-b2e.workers.dev';
+        const AI_PROXY_BASE = 'https://YOUR-WORKER-SUBDOMAIN.workers.dev';
         const AI_ENDPOINT = (model) => `${AI_PROXY_BASE}/api/gemini/${model}`;
 
         // --- State ---
-        let ws = null;
         let mediaStream = null;
         let audioContext = null;
-        let processor = null;
         let analyser = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
         let isRecording = false;
         let currentFormat = 'roman';
         let confirmedSegments = [];
         let currentPartial = null;
         let animFrameId = null;
-        let safetyTimeoutId = null;
-        let eosTimeoutId = null;
 
         // --- AI settings (persisted in localStorage) ---
         const VALID_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
@@ -1637,136 +1634,26 @@
             clearContentDirty();
         }
 
-        // --- WebSocket ---
-        function connectWS() {
-            return new Promise((resolve, reject) => {
-                addLog('info', `Connecting to ${WS_URL}...`);
-
-                ws = new WebSocket(WS_URL);
-                ws.binaryType = 'arraybuffer';
-
-                ws.onopen = () => {
-                    setStatus('connected', 'Connected');
-                    addLog('info', 'WebSocket connected');
-                    resolve();
-                };
-
-                ws.onmessage = (event) => {
-                    try {
-                        const msg = JSON.parse(event.data);
-                        handleMessage(msg);
-                    } catch (e) {
-                        addLog('error', `Parse error: ${e.message}`);
-                    }
-                };
-
-                ws.onerror = (e) => {
-                    setStatus('error', 'Connection error');
-                    addLog('error', 'WebSocket error');
-                    reject(e);
-                };
-
-                ws.onclose = (e) => {
-                    setStatus('', 'Disconnected');
-                    addLog('info', `WebSocket closed (code: ${e.code})`);
-                    ws = null;
-                };
-            });
-        }
-
-        function handleMessage(msg) {
-            if (msg.type === 'session') {
-                sessionIdEl.textContent = `Session: ${msg.session_id}`;
-                addLog('info', `Session: ${msg.session_id}`);
-                return;
-            }
-
-            if (msg.type === 'error' || msg.error) {
-                addLog('error', `Server error: ${msg.error}`);
-                return;
-            }
-
-            addLog('', `Result: final=${msg.is_final} eos=${msg.is_end_of_stream} phoneme="${msg.phoneme || ''}" ts=${msg.timestamp_ms}ms`);
-
-            if (msg.is_end_of_stream) {
-                if (msg.phoneme) {
-                    currentPartial = null;
-                    confirmedSegments.push({ phoneme: msg.phoneme, mixed: msg.mixed, roman: msg.roman });
-                }
-                renderTranscript();
-                micLabel.textContent = 'Click to start';
-                setStatus('', 'Done');
-
-                if (safetyTimeoutId) {
-                    clearTimeout(safetyTimeoutId);
-                    safetyTimeoutId = null;
-                }
-
-                eosTimeoutId = setTimeout(() => {
-                    eosTimeoutId = null;
-                    if (ws && ws.readyState === WebSocket.OPEN) ws.close();
-                }, 2000);
-
-                // Dictation finished — hand it to the AI for formatting/summary/actions.
-                if (autoProcessEnabled) {
-                    processWithAI();
-                } else {
-                    aiStatusText.textContent = 'Dictation finished. Click "Process now" to format, summarize & find actions.';
-                }
-                return;
-            }
-
-            if (msg.is_final) {
-                confirmedSegments.push({ phoneme: msg.phoneme, mixed: msg.mixed, roman: msg.roman });
-                currentPartial = null;
-            } else {
-                currentPartial = { phoneme: msg.phoneme, mixed: msg.mixed, roman: msg.roman };
-            }
-
-            renderTranscript();
-        }
-
-        // --- Audio capture ---
+        // --- Audio capture (browser mic -> Gemini) ---
         async function startAudio() {
             if (!mediaStream || mediaStream.getTracks().every(t => t.readyState === 'ended')) {
                 mediaStream = await navigator.mediaDevices.getUserMedia({
                     audio: {
-                        sampleRate: 16000,
-                        channelCount: 1,
                         echoCancellation: true,
                         noiseSuppression: true,
                         autoGainControl: true,
+                        channelCount: 1,
                     }
                 });
             }
 
-            audioContext = new AudioContext({ sampleRate: 16000 });
+            audioContext = new AudioContext();
             const source = audioContext.createMediaStreamSource(mediaStream);
 
             analyser = audioContext.createAnalyser();
-            // 1024 gives ~64ms time-domain window at 16kHz — stable enough for RMS-based VAD
-            // while still leaving 512 frequency bins for the visualizer.
+            // 1024 gives a stable RMS-based VAD window while leaving 512 frequency bins for the visualizer.
             analyser.fftSize = 1024;
             source.connect(analyser);
-
-            const bufferSize = 4096;
-            processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
-            processor.onaudioprocess = (e) => {
-                if (!isRecording || !ws || ws.readyState !== WebSocket.OPEN) return;
-
-                const float32Data = e.inputBuffer.getChannelData(0);
-
-                const int16 = new Int16Array(float32Data.length);
-                for (let i = 0; i < float32Data.length; i++) {
-                    const s = Math.max(-1, Math.min(1, float32Data[i]));
-                    int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-                }
-
-                ws.send(int16.buffer);
-            };
-
-            source.connect(processor);
-            processor.connect(audioContext.destination);
 
             startVisualizer();
         }
@@ -1774,50 +1661,90 @@
         function stopAudio() {
             stopVisualizer();
 
-            if (processor) { processor.disconnect(); processor = null; }
             if (analyser) { analyser.disconnect(); analyser = null; }
             if (audioContext) { audioContext.close(); audioContext = null; }
         }
 
-        let sentHeader = false;
-
-        function buildWavChunk(int16Data) {
-            if (sentHeader) return int16Data.buffer;
-
-            sentHeader = true;
-            const sampleRate = 16000;
-            const numChannels = 1;
-            const bitsPerSample = 16;
-            const dataSize = 0x7FFFFFFF;
-            const headerSize = 44;
-            const buffer = new ArrayBuffer(headerSize + int16Data.byteLength);
-            const view = new DataView(buffer);
-
-            writeString(view, 0, 'RIFF');
-            view.setUint32(4, dataSize + 36, true);
-            writeString(view, 8, 'WAVE');
-
-            writeString(view, 12, 'fmt ');
-            view.setUint32(16, 16, true);
-            view.setUint16(20, 1, true);
-            view.setUint16(22, numChannels, true);
-            view.setUint32(24, sampleRate, true);
-            view.setUint32(28, sampleRate * numChannels * bitsPerSample / 8, true);
-            view.setUint16(32, numChannels * bitsPerSample / 8, true);
-            view.setUint16(34, bitsPerSample, true);
-
-            writeString(view, 36, 'data');
-            view.setUint32(40, dataSize, true);
-
-            new Uint8Array(buffer, headerSize).set(new Uint8Array(int16Data.buffer));
-
-            return buffer;
+        function arrayBufferToBase64(buffer) {
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            const chunkSize = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+                binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+            }
+            return btoa(binary);
         }
 
-        function writeString(view, offset, str) {
-            for (let i = 0; i < str.length; i++) {
-                view.setUint8(offset + i, str.charCodeAt(i));
+        async function transcribeAudio(blob) {
+            aiStatusText.textContent = 'Transcribing workshop audio…';
+            aiSpinner.classList.add('visible');
+
+            const buffer = await blob.arrayBuffer();
+            const base64Audio = arrayBufferToBase64(buffer);
+            const mimeType = blob.type || 'audio/webm';
+
+            const transcriptionPrompt = `Transcribe this workshop technician audio faithfully.
+
+Requirements:
+- Detect the spoken language automatically.
+- Preserve the original spoken language; do not translate.
+- Preserve automotive terminology, model names, VINs, DTC codes, part numbers, measurements, acronyms and English technical words used inside another language.
+- Do not summarize, format, correct meaning, or invent missing words.
+- Remove only obvious non-speech noise artifacts.
+- Return ONLY JSON:
+{"language":"detected language","transcript":"verbatim transcription"}`;
+
+            const body = {
+                contents: [{
+                    parts: [
+                        { text: transcriptionPrompt },
+                        { inlineData: { mimeType, data: base64Audio } }
+                    ]
+                }],
+                generationConfig: {
+                    temperature: 0,
+                    responseMimeType: 'application/json',
+                    responseSchema: {
+                        type: 'OBJECT',
+                        properties: {
+                            language: { type: 'STRING' },
+                            transcript: { type: 'STRING' }
+                        },
+                        required: ['language', 'transcript']
+                    }
+                }
+            };
+
+            const resp = await fetch(`${AI_ENDPOINT(aiModel)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+
+            if (!resp.ok) {
+                let detail = '';
+                try {
+                    const errJson = await resp.json();
+                    detail = errJson?.error?.message || JSON.stringify(errJson);
+                } catch (_) {
+                    detail = await resp.text();
+                }
+                throw new Error(`Transcription error (${resp.status}): ${detail}`);
             }
+
+            const data = await resp.json();
+            const partText = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+            const parsed = JSON.parse(partText);
+            if (!parsed.transcript) throw new Error('Transcription returned no text — try speaking a little longer.');
+
+            confirmedSegments.push({ roman: parsed.transcript, phoneme: parsed.transcript, mixed: parsed.transcript });
+            currentPartial = null;
+            renderedChars = [];
+            transcriptBox.innerHTML = '';
+            renderTranscript();
+
+            if (parsed.language) detectedLanguageEl.textContent = 'Language: ' + parsed.language;
+            return parsed.transcript;
         }
 
         // --- Visualizer + VAD (share the analyser & RAF loop) ---
@@ -1885,31 +1812,17 @@
             if (isRecording) {
                 isRecording = false;
                 micBtn.classList.remove('recording');
-                micLabel.textContent = 'Finalizing...';
-                setStatus('connected', 'Waiting for final result...');
+                micLabel.textContent = 'Transcribing...';
+                setStatus('connected', 'Processing audio...');
 
                 stopAudio();
-
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'end' }));
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
                 }
-
-                safetyTimeoutId = setTimeout(() => {
-                    safetyTimeoutId = null;
-                    if (ws) {
-                        addLog('info', 'Safety timeout — closing WebSocket');
-                        ws.close();
-                    }
-                    micLabel.textContent = 'Click to start';
-                }, 10000);
             } else {
                 try {
                     micBtn.disabled = true;
                     micLabel.textContent = 'Connecting...';
-                    sentHeader = false;
-
-                    if (safetyTimeoutId) { clearTimeout(safetyTimeoutId); safetyTimeoutId = null; }
-                    if (eosTimeoutId) { clearTimeout(eosTimeoutId); eosTimeoutId = null; }
 
                     currentPartial = null;
 
@@ -1919,21 +1832,43 @@
                     vadSpeechAccumMs = 0;
                     vadLastSpeechMs = 0;
 
-                    await connectWS();
                     await startAudio();
 
-                    const origProcessor = processor;
-                    origProcessor.onaudioprocess = (e) => {
-                        if (!isRecording || !ws || ws.readyState !== WebSocket.OPEN) return;
-                        const float32Data = e.inputBuffer.getChannelData(0);
-                        const int16 = new Int16Array(float32Data.length);
-                        for (let i = 0; i < float32Data.length; i++) {
-                            const s = Math.max(-1, Math.min(1, float32Data[i]));
-                            int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                    audioChunks = [];
+                    const preferredTypes = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'];
+                    const mimeType = preferredTypes.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+                    mediaRecorder = mimeType
+                        ? new MediaRecorder(mediaStream, { mimeType })
+                        : new MediaRecorder(mediaStream);
+
+                    mediaRecorder.addEventListener('dataavailable', (e) => {
+                        if (e.data && e.data.size > 0) audioChunks.push(e.data);
+                    });
+
+                    mediaRecorder.addEventListener('stop', async () => {
+                        const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+                        try {
+                            await transcribeAudio(blob);
+                            micLabel.textContent = 'Click to start';
+                            setStatus('', 'Done');
+
+                            // Dictation finished — hand it to the AI for formatting/summary/actions.
+                            if (autoProcessEnabled) {
+                                await processWithAI();
+                            } else {
+                                aiStatusText.textContent = 'Dictation finished. Click "Process now" to format, summarize & find actions.';
+                            }
+                        } catch (e) {
+                            setStatus('error', `Error: ${e.message || e}`);
+                            showAiError(e.message || String(e));
+                            aiStatusText.textContent = 'Transcription failed.';
+                        } finally {
+                            aiSpinner.classList.remove('visible');
+                            micBtn.disabled = false;
                         }
-                        const chunk = buildWavChunk(int16);
-                        ws.send(chunk);
-                    };
+                    });
+
+                    mediaRecorder.start(250);
 
                     isRecording = true;
                     micBtn.classList.add('recording');
@@ -1946,7 +1881,6 @@
                     setStatus('error', `Error: ${e.message || e}`);
                     addLog('error', `Start failed: ${e.message || e}`);
                     stopAudio();
-                    if (ws) ws.close();
                 }
             }
         }
