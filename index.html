@@ -1,0 +1,2480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mihup Automotive Techline — Voice Incident Reporting</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            /* Brand (indigo) */
+            --brand-50: #eef2ff;
+            --brand-100: #e0e7ff;
+            --brand-200: #c7d2fe;
+            --brand-500: #6366f1;
+            --brand-600: #4f46e5;
+            --brand-700: #4338ca;
+            --brand-glow: rgba(79, 70, 229, 0.16);
+
+            /* Neutrals */
+            --ink-900: #0f172a;
+            --ink-800: #1e293b;
+            --ink-700: #334155;
+            --ink-600: #475569;
+            --ink-500: #64748b;
+            --ink-400: #94a3b8;
+            --ink-300: #cbd5e1;
+            --ink-200: #e2e8f0;
+            --ink-100: #f1f5f9;
+            --ink-50: #f8fafc;
+
+            --surface: #ffffff;
+            --bg: #f5f6fa;
+            --border: #e6e8f0;
+            --border-strong: #d7dae5;
+
+            /* Semantic */
+            --success: #059669;
+            --success-soft: #ecfdf5;
+            --success-border: #a7f3d0;
+            --danger: #dc2626;
+            --danger-soft: #fef2f2;
+            --danger-border: #fecaca;
+            --recording: #e11d48;
+            --recording-glow: rgba(225, 29, 72, 0.18);
+
+            /* AI accent (teal) — kept visually distinct from brand indigo,
+               and from "recording" red, so it reads as its own lane. */
+            --ai: #0d9488;
+            --ai-soft: #f0fdfa;
+            --ai-border: #99f6e4;
+        }
+
+        * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+
+        body {
+            background:
+                radial-gradient(1200px 500px at 50% -10%, rgba(79, 70, 229, 0.06), transparent 60%),
+                var(--bg);
+            color: var(--ink-800);
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        a { color: inherit; }
+
+        /* ============ Top nav ============ */
+        .topnav {
+            position: sticky;
+            top: 0;
+            z-index: 60;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .topnav-inner {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 0 28px;
+            height: 64px;
+            display: flex;
+            align-items: center;
+        }
+
+        .brand-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            flex-shrink: 0;
+        }
+
+        .brand-mark {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, var(--brand-600), var(--brand-500) 55%, #818cf8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: 800;
+            color: #fff;
+            box-shadow: 0 4px 14px var(--brand-glow);
+            flex-shrink: 0;
+        }
+
+        .brand-word {
+            font-size: 1.06rem;
+            font-weight: 700;
+            color: var(--ink-900);
+            letter-spacing: -0.015em;
+        }
+
+        .topnav-divider {
+            width: 1px;
+            height: 22px;
+            background: var(--border-strong);
+            margin: 0 16px;
+            flex-shrink: 0;
+        }
+
+        .topnav-product {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .product-name {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--ink-700);
+        }
+
+        .product-badge {
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: var(--brand-700);
+            background: var(--brand-50);
+            border: 1px solid var(--brand-100);
+            padding: 2px 8px;
+            border-radius: 999px;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            white-space: nowrap;
+        }
+
+        .topnav-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: var(--ink-500);
+            white-space: nowrap;
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--ink-300);
+            transition: all 0.3s;
+            flex-shrink: 0;
+        }
+        .status-dot.connected { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
+        .status-dot.recording { background: var(--recording); animation: pulse-dot 1.2s infinite; }
+        .status-dot.error { background: #d97706; box-shadow: 0 0 0 3px #fef3c7; }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--recording-glow); }
+            50% { opacity: 0.65; box-shadow: 0 0 0 6px transparent; }
+        }
+
+        #sessionId {
+            font-family: 'SF Mono', 'IBM Plex Mono', monospace;
+            font-size: 0.7rem;
+            color: var(--ink-400);
+            display: none;
+        }
+        #sessionId:not(:empty) { display: inline; }
+
+        .settings-btn {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 7px 14px;
+            border: 1px solid var(--border-strong);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--ink-700);
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .settings-btn:hover {
+            border-color: var(--brand-500);
+            color: var(--brand-700);
+            background: var(--brand-50);
+        }
+        .settings-btn.needs-key {
+            border-color: var(--ai-border);
+            color: var(--ai);
+            background: var(--ai-soft);
+        }
+
+        /* ============ Page ============ */
+        .page {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 36px 28px 64px;
+        }
+
+        .page-header { margin-bottom: 26px; }
+
+        .page-header h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--ink-900);
+            letter-spacing: -0.02em;
+        }
+
+        .page-header .subtitle {
+            font-size: 0.92rem;
+            color: var(--ink-500);
+            margin-top: 5px;
+        }
+
+        .feature-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .feature-tag {
+            font-size: 0.72rem;
+            font-weight: 500;
+            color: var(--ink-600);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 5px 11px;
+            border-radius: 999px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .feature-tag .dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--brand-500);
+        }
+
+        /* ============ Dashboard grid ============ */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 22px;
+            align-items: start;
+        }
+
+        @media (max-width: 920px) {
+            .dashboard-grid { grid-template-columns: 1fr; }
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.03);
+            margin-bottom: 20px;
+        }
+
+        .panel-eyebrow {
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: var(--ink-400);
+            text-transform: uppercase;
+            letter-spacing: 0.09em;
+            margin-bottom: 4px;
+        }
+
+        /* ---- Record panel ---- */
+        .record-panel { text-align: center; }
+
+        .mic-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 4px;
+        }
+
+        .mic-btn {
+            width: 84px;
+            height: 84px;
+            border-radius: 50%;
+            border: 2px solid var(--border-strong);
+            background: var(--ink-50);
+            color: var(--ink-500);
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .mic-btn:hover:not(:disabled) {
+            border-color: var(--brand-500);
+            color: var(--brand-600);
+            background: var(--brand-50);
+            box-shadow: 0 6px 18px var(--brand-glow);
+        }
+
+        .mic-btn.recording {
+            border-color: var(--recording);
+            background: var(--danger-soft);
+            color: var(--recording);
+            animation: pulse-border 2s infinite;
+        }
+
+        @keyframes pulse-border {
+            0%, 100% { box-shadow: 0 0 0 0 var(--recording-glow); }
+            50% { box-shadow: 0 0 0 12px transparent; }
+        }
+
+        .mic-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        .mic-label {
+            margin-top: 14px;
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--ink-600);
+        }
+
+        .vad-row, .auto-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 14px;
+            font-size: 0.78rem;
+            color: var(--ink-500);
+            user-select: none;
+        }
+
+        .switch {
+            position: relative;
+            width: 32px;
+            height: 18px;
+            background: var(--ink-200);
+            border: 1px solid var(--border-strong);
+            border-radius: 999px;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .switch::after {
+            content: '';
+            position: absolute;
+            top: 1px;
+            left: 1px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+            transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .switch.on { background: var(--brand-500); border-color: var(--brand-600); }
+        .switch.on::after { left: 15px; }
+
+        .vad-row .hint {
+            color: var(--ink-400);
+            font-size: 0.7rem;
+            font-family: 'SF Mono', monospace;
+        }
+
+        .divider-line {
+            height: 1px;
+            background: var(--border);
+            margin: 18px 0;
+        }
+
+        .visualizer {
+            height: 40px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+        }
+
+        .vis-bar {
+            width: 3px;
+            background: linear-gradient(to top, var(--brand-600), var(--brand-300, #a5b4fc));
+            border-radius: 2px;
+            transition: height 0.06s ease-out;
+            min-height: 3px;
+            opacity: 0.9;
+        }
+
+        /* ---- Tips panel ---- */
+        .tips-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .tips-list li {
+            font-size: 0.82rem;
+            line-height: 1.55;
+            color: var(--ink-600);
+            display: flex;
+            gap: 9px;
+        }
+
+        .tips-list li .num {
+            flex-shrink: 0;
+            width: 18px;
+            height: 18px;
+            border-radius: 5px;
+            background: var(--brand-50);
+            color: var(--brand-700);
+            font-size: 0.68rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 1px;
+        }
+
+        .tips-list code {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.76rem;
+            background: var(--ink-100);
+            color: var(--ink-700);
+            padding: 1px 6px;
+            border-radius: 4px;
+        }
+
+        .tips-list strong { color: var(--ink-800); font-weight: 600; }
+
+        /* ---- Section headers shared by transcript / ai panels ---- */
+        .section-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .section-head h2 {
+            font-size: 0.78rem;
+            font-weight: 700;
+            color: var(--ink-500);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-head .badge {
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: var(--ai);
+            background: var(--ai-soft);
+            border: 1px solid var(--ai-border);
+            border-radius: 999px;
+            padding: 2px 8px;
+            letter-spacing: 0.04em;
+            text-transform: none;
+        }
+
+        .format-toggle {
+            display: flex;
+            gap: 2px;
+            background: var(--ink-100);
+            border-radius: 8px;
+            padding: 3px;
+            border: 1px solid var(--border);
+        }
+
+        .format-toggle button {
+            padding: 5px 12px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--ink-500);
+            font-size: 0.74rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .format-toggle button:hover { color: var(--ink-700); }
+        .format-toggle button.active {
+            background: var(--surface);
+            color: var(--ink-900);
+            box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+        }
+
+        .clear-btn, .action-btn {
+            padding: 6px 13px;
+            border: 1px solid var(--border-strong);
+            border-radius: 8px;
+            background: var(--surface);
+            color: var(--ink-600);
+            font-size: 0.76rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .clear-btn:hover, .action-btn:hover:not(:disabled) {
+            border-color: var(--ink-400);
+            color: var(--ink-800);
+            background: var(--ink-50);
+        }
+        .action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        .action-btn.primary {
+            border-color: var(--ai-border);
+            color: var(--ai);
+            background: var(--ai-soft);
+        }
+        .action-btn.primary:hover:not(:disabled) {
+            border-color: var(--ai);
+            background: #ccfbf1;
+        }
+
+        .action-btn.solid {
+            border-color: var(--brand-600);
+            background: var(--brand-600);
+            color: #fff;
+        }
+        .action-btn.solid:hover:not(:disabled) {
+            background: var(--brand-700);
+            border-color: var(--brand-700);
+        }
+
+        /* ---- Transcript ---- */
+        .transcript-box {
+            background: var(--ink-50);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 22px;
+            min-height: 210px;
+            max-height: 360px;
+            overflow-y: auto;
+            font-size: 1.02rem;
+            line-height: 1.75;
+            letter-spacing: 0.003em;
+            color: var(--ink-800);
+        }
+
+        .transcript-box:empty::before {
+            content: 'Transcript will appear here...';
+            color: var(--ink-400);
+            font-style: italic;
+        }
+
+        .transcript-box::-webkit-scrollbar { width: 8px; }
+        .transcript-box::-webkit-scrollbar-track { background: transparent; }
+        .transcript-box::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+        .transcript-box::-webkit-scrollbar-thumb:hover { background: var(--ink-300); }
+
+        .char { animation: char-fade-in 0.22s ease-out both; }
+        @keyframes char-fade-in {
+            0% { opacity: 0; filter: blur(2px); }
+            100% { opacity: 1; filter: blur(0); }
+        }
+        .char.final { color: var(--ink-900); transition: color 0.45s ease; }
+        .char.partial { color: var(--brand-500); opacity: 0.75; }
+
+        /* ---- AI section ---- */
+        .ai-status {
+            font-size: 0.78rem;
+            color: var(--ink-500);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 18px;
+        }
+
+        .spinner {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid var(--ink-200);
+            border-top-color: var(--ai);
+            animation: spin 0.7s linear infinite;
+            display: none;
+        }
+        .spinner.visible { display: inline-block; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .ai-error {
+            display: none;
+            background: var(--danger-soft);
+            border: 1px solid var(--danger-border);
+            color: #b91c1c;
+            border-radius: 10px;
+            padding: 11px 15px;
+            font-size: 0.8rem;
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+        .ai-error.visible { display: block; }
+
+        .ai-card {
+            background: var(--ink-50);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 19px 20px;
+            margin-bottom: 14px;
+        }
+
+        .ai-card-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .ai-card-title span {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--ink-500);
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+        }
+
+        .copy-btn {
+            border: none;
+            background: transparent;
+            color: var(--ink-400);
+            cursor: pointer;
+            font-size: 0.72rem;
+            font-weight: 500;
+            padding: 3px 9px;
+            border-radius: 6px;
+            transition: all 0.15s;
+        }
+        .copy-btn:hover { color: var(--ink-700); background: var(--ink-100); }
+
+        .ai-card-body {
+            font-size: 0.95rem;
+            line-height: 1.7;
+            color: var(--ink-800);
+            white-space: pre-wrap;
+        }
+        .ai-card-body:empty::before {
+            content: 'Nothing here yet — dictate something, then process it.';
+            color: var(--ink-400);
+            font-style: italic;
+            white-space: normal;
+        }
+        .ai-card-body.summary { color: var(--ink-600); }
+        .ai-card-body ul { padding-left: 20px; }
+        .ai-card-body li { margin-bottom: 4px; }
+
+        .ai-card-body[contenteditable="true"] {
+            cursor: text;
+            border-radius: 8px;
+            transition: box-shadow 0.15s, background 0.15s;
+        }
+        .ai-card-body[contenteditable="true"]:hover {
+            box-shadow: 0 0 0 1px var(--border-strong);
+        }
+        .ai-card-body[contenteditable="true"]:focus {
+            outline: none;
+            background: var(--surface);
+            box-shadow: 0 0 0 3px var(--brand-100);
+        }
+
+        .editable-hint {
+            font-size: 0.62rem;
+            font-weight: 500;
+            color: var(--ink-400);
+            text-transform: none;
+            letter-spacing: normal;
+            font-style: italic;
+            margin-left: 2px;
+        }
+
+        .edited-badge {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: #b45309;
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            padding: 2px 9px;
+            border-radius: 999px;
+            opacity: 0;
+            transform: translateY(-2px);
+            transition: opacity 0.15s, transform 0.15s;
+            margin-left: 2px;
+        }
+        .edited-badge.visible { opacity: 1; transform: translateY(0); }
+
+        /* ---- Suggested action chips ---- */
+        .actions-list { display: flex; flex-wrap: wrap; gap: 9px; }
+        .actions-empty { font-size: 0.82rem; color: var(--ink-400); font-style: italic; }
+
+        .action-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px 8px 11px;
+            border-radius: 999px;
+            border: 1px solid var(--border-strong);
+            background: var(--surface);
+            color: var(--ink-700);
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .action-chip:hover:not(:disabled) {
+            border-color: var(--brand-500);
+            color: var(--brand-700);
+            background: var(--brand-50);
+        }
+        .action-chip .action-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 15px;
+            height: 15px;
+            flex-shrink: 0;
+            color: var(--brand-500);
+        }
+        .action-chip .action-icon svg { width: 100%; height: 100%; }
+        .action-chip.working { opacity: 0.6; cursor: default; }
+        .action-chip.done {
+            border-color: var(--success-border);
+            color: var(--success);
+            background: var(--success-soft);
+            cursor: default;
+        }
+        .action-chip.done .action-icon { color: var(--success); }
+        .action-chip:disabled { cursor: default; }
+
+        /* ---- Custom action row ---- */
+        .custom-action-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px dashed var(--border-strong);
+        }
+        .custom-action-row input {
+            flex: 1;
+            min-width: 0;
+            padding: 9px 13px;
+            border-radius: 9px;
+            border: 1px solid var(--border-strong);
+            background: var(--surface);
+            color: var(--ink-800);
+            font-size: 0.83rem;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.15s;
+        }
+        .custom-action-row input::placeholder { color: var(--ink-400); }
+        .custom-action-row input:focus {
+            border-color: var(--brand-500);
+            box-shadow: 0 0 0 3px var(--brand-100);
+        }
+        .custom-action-row .action-btn { flex-shrink: 0; white-space: nowrap; }
+
+        /* ---- Debug log ---- */
+        .log-section { margin-top: 6px; }
+
+        .log-toggle {
+            font-size: 0.74rem;
+            color: var(--ink-400);
+            cursor: pointer;
+            border: none;
+            background: none;
+            padding: 4px 0;
+            font-weight: 500;
+            transition: color 0.15s;
+        }
+        .log-toggle:hover { color: var(--ink-600); }
+
+        .log-box {
+            background: var(--ink-900);
+            border: 1px solid var(--ink-800);
+            border-radius: 10px;
+            padding: 14px;
+            max-height: 160px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.7rem;
+            line-height: 1.6;
+            color: var(--ink-300);
+            display: none;
+            margin-top: 8px;
+        }
+        .log-box.visible { display: block; }
+        .log-entry.error { color: #fca5a5; }
+        .log-entry.info { color: #93c5fd; }
+
+        /* ---- Footer ---- */
+        .footer-credit {
+            margin-top: 8px;
+            font-size: 0.76rem;
+            color: var(--ink-400);
+            text-align: center;
+            letter-spacing: 0.01em;
+        }
+        .footer-credit a { color: var(--ink-600); text-decoration: none; font-weight: 500; }
+        .footer-credit a:hover { color: var(--brand-600); text-decoration: underline; }
+
+        /* ---- Toasts ---- */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 8px;
+            z-index: 200;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        .toast {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--surface);
+            border: 1px solid var(--border-strong);
+            border-left: 3px solid var(--success);
+            border-radius: 10px;
+            padding: 12px 18px;
+            font-size: 0.84rem;
+            font-weight: 500;
+            color: var(--ink-800);
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+            max-width: min(90vw, 480px);
+            animation: toast-in 0.25s cubic-bezier(0.4, 0, 0.2, 1) both;
+        }
+        .toast.leaving { animation: toast-out 0.22s ease-in both; }
+        .toast .toast-icon { width: 16px; height: 16px; flex-shrink: 0; color: var(--success); display: flex; }
+        .toast .toast-icon svg { width: 100%; height: 100%; }
+
+        @keyframes toast-in {
+            0% { opacity: 0; transform: translateY(10px) scale(0.97); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes toast-out {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(6px) scale(0.97); }
+        }
+
+        /* ---- Settings modal ---- */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            backdrop-filter: blur(3px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: 20px;
+        }
+        .modal-overlay.visible { display: flex; }
+
+        .modal {
+            width: 100%;
+            max-width: 440px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 28px;
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+        }
+
+        .modal h3 {
+            font-size: 1.08rem;
+            font-weight: 700;
+            color: var(--ink-900);
+            margin-bottom: 5px;
+        }
+
+        .modal .modal-sub {
+            font-size: 0.8rem;
+            color: var(--ink-500);
+            margin-bottom: 22px;
+            line-height: 1.55;
+        }
+
+        .field-label {
+            font-size: 0.76rem;
+            color: var(--ink-600);
+            margin-bottom: 6px;
+            display: block;
+            font-weight: 600;
+        }
+
+        .field-group { margin-bottom: 17px; }
+
+        .modal input[type="password"],
+        .modal input[type="text"],
+        .modal select {
+            width: 100%;
+            padding: 10px 13px;
+            border-radius: 9px;
+            border: 1px solid var(--border-strong);
+            background: var(--ink-50);
+            color: var(--ink-900);
+            font-size: 0.85rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            outline: none;
+            transition: all 0.15s;
+        }
+        .modal select { font-family: inherit; cursor: pointer; }
+        .modal input:focus, .modal select:focus {
+            border-color: var(--brand-500);
+            background: var(--surface);
+            box-shadow: 0 0 0 3px var(--brand-100);
+        }
+
+        .field-hint {
+            font-size: 0.72rem;
+            color: var(--ink-400);
+            margin-top: 6px;
+            line-height: 1.5;
+        }
+        .field-hint a { color: var(--brand-600); text-decoration: none; font-weight: 500; }
+        .field-hint a:hover { text-decoration: underline; }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .modal-btn {
+            padding: 9px 17px;
+            border-radius: 9px;
+            font-size: 0.82rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--border-strong);
+            background: var(--surface);
+            color: var(--ink-700);
+            transition: all 0.15s;
+        }
+        .modal-btn:hover { background: var(--ink-50); }
+        .modal-btn.save {
+            background: var(--brand-600);
+            border-color: var(--brand-600);
+            color: #fff;
+            font-weight: 600;
+        }
+        .modal-btn.save:hover { background: var(--brand-700); border-color: var(--brand-700); }
+
+        .save-confirm {
+            font-size: 0.74rem;
+            color: var(--success);
+            font-weight: 600;
+            margin-right: auto;
+            align-self: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .save-confirm.visible { opacity: 1; }
+
+        /* ---- Automotive Techline form ---- */
+        .techline-header {
+            display:flex; align-items:flex-start; justify-content:space-between;
+            gap:14px; margin-bottom:18px; flex-wrap:wrap;
+        }
+        .techline-title { font-size:1.02rem; font-weight:700; color:var(--ink-900); }
+        .techline-sub { font-size:.78rem; color:var(--ink-500); margin-top:4px; line-height:1.45; }
+        .completeness-pill {
+            display:inline-flex; align-items:center; gap:7px; padding:6px 10px;
+            border-radius:999px; font-size:.72rem; font-weight:700;
+            background:var(--ink-100); color:var(--ink-600); border:1px solid var(--border);
+        }
+        .completeness-pill.complete { background:var(--success-soft); color:var(--success); border-color:var(--success-border); }
+        .completeness-pill.missing { background:#fff7ed; color:#c2410c; border-color:#fed7aa; }
+        .case-grid { display:grid; grid-template-columns:1fr 1fr; gap:13px; }
+        .case-field { min-width:0; }
+        .case-field.full { grid-column:1 / -1; }
+        .case-label {
+            display:flex; align-items:center; gap:5px; font-size:.69rem; font-weight:700;
+            color:var(--ink-500); text-transform:uppercase; letter-spacing:.055em; margin-bottom:6px;
+        }
+        .required-star { color:#dc2626; font-size:.72rem; }
+        .case-input, .case-textarea {
+            width:100%; border:1px solid var(--border-strong); border-radius:9px;
+            background:var(--ink-50); color:var(--ink-800); font:inherit; font-size:.83rem;
+            padding:10px 11px; outline:none; transition:.15s;
+        }
+        .case-input:focus, .case-textarea:focus {
+            border-color:var(--brand-500); background:var(--surface); box-shadow:0 0 0 3px var(--brand-100);
+        }
+        .case-textarea { resize:vertical; min-height:76px; line-height:1.48; }
+        .case-field.missing .case-input, .case-field.missing .case-textarea {
+            border-color:#fb923c; background:#fff7ed;
+        }
+        .followup-box {
+            margin-top:16px; border:1px solid #fed7aa; background:#fff7ed;
+            border-radius:12px; padding:14px 15px; display:none;
+        }
+        .followup-box.visible { display:block; }
+        .followup-title { font-size:.72rem; font-weight:800; color:#9a3412; text-transform:uppercase; letter-spacing:.055em; }
+        .followup-question { margin-top:6px; font-size:.9rem; color:#7c2d12; line-height:1.5; font-weight:600; }
+        .missing-tags { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+        .missing-tag { font-size:.68rem; padding:3px 8px; border-radius:999px; border:1px solid #fdba74; background:white; color:#9a3412; }
+        .techline-summary {
+            margin-top:16px; padding:14px 15px; border:1px solid var(--ai-border);
+            border-radius:12px; background:var(--ai-soft);
+        }
+        .techline-summary-title { font-size:.7rem; font-weight:800; color:var(--ai); text-transform:uppercase; letter-spacing:.06em; margin-bottom:7px; }
+        .techline-summary-body { font-size:.84rem; line-height:1.55; color:var(--ink-700); white-space:pre-wrap; }
+        .lang-detected { font-size:.7rem; color:var(--ink-500); }
+        .hidden-legacy { display:none !important; }
+        @media(max-width:700px){ .case-grid{grid-template-columns:1fr;} .case-field.full{grid-column:auto;} }
+
+    </style>
+</head>
+<body>
+    <div class="topnav">
+        <div class="topnav-inner">
+            <a class="brand-logo" href="https://www.mihup.ai" target="_blank" rel="noopener">
+                <span class="brand-mark">M</span>
+                <span class="brand-word">Mihup</span>
+            </a>
+            <div class="topnav-divider"></div>
+            <div class="topnav-product">
+                <span class="product-name">Automotive Techline Assist</span>
+                <span class="product-badge">Global Innovation Demo</span>
+            </div>
+            <div class="topnav-right">
+                <div class="status-bar">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText">Disconnected</span>
+                    <span id="sessionId"></span>
+                </div>
+                <button class="settings-btn" id="settingsBtn" onclick="openSettings()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span id="settingsBtnLabel">AI settings</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="page">
+        <div class="page-header">
+            <h1>Voice-to-Techline Incident Report</h1>
+            <p class="subtitle">Capture a technician’s free-form workshop voice note and convert it into a complete, structured escalation case.</p>
+            <div class="feature-tags">
+                <span class="feature-tag"><span class="dot"></span>Multilingual workshop ASR</span>
+                <span class="feature-tag"><span class="dot"></span>Automotive field extraction</span>
+                <span class="feature-tag"><span class="dot"></span>Mandatory-field validation</span>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <aside>
+                <div class="panel record-panel">
+                    <div class="panel-eyebrow" style="text-align:left;">Workshop voice capture</div>
+                    <div class="mic-section">
+                        <button class="mic-btn" id="micBtn" onclick="toggleRecording()">
+                            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                <line x1="12" y1="19" x2="12" y2="23"/>
+                                <line x1="8" y1="23" x2="16" y2="23"/>
+                            </svg>
+                        </button>
+                        <span class="mic-label" id="micLabel">Tap and describe the vehicle issue</span>
+                        <div class="vad-row">
+                            <div class="switch on" id="vadSwitch" onclick="toggleVAD()"></div>
+                            <span>Auto-stop on silence</span>
+                            <span class="hint" id="vadHint">1.2s</span>
+                        </div>
+                        <div class="auto-row">
+                            <div class="switch on" id="autoProcessSwitch" onclick="toggleAutoProcess()"></div>
+                            <span>Auto-fill Techline report</span>
+                        </div>
+                    </div>
+                    <div class="divider-line"></div>
+                    <div class="visualizer" id="visualizer"></div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-eyebrow" style="text-align:left;">Demo flow</div>
+                    <ul class="tips-list">
+                        <li><span class="num">1</span><span>Speak naturally in <strong>French, English, German, Spanish, Italian</strong> or another enabled language.</span></li>
+                        <li><span class="num">2</span><span>Include workshop language, model names, components, mileage and <strong>DTC codes</strong> naturally — no form-by-form dictation.</span></li>
+                        <li><span class="num">3</span><span>AI maps the transcript into the <strong>Techline incident form</strong> and preserves only facts actually spoken.</span></li>
+                        <li><span class="num">4</span><span>If a mandatory field is missing, the system creates a <strong>targeted follow-up question</strong> for the technician.</span></li>
+                    </ul>
+                    <div class="divider-line"></div>
+                    <div style="font-size:.76rem;color:var(--ink-500);line-height:1.55;text-align:left;">
+                        <strong style="color:var(--ink-800)">Best demo:</strong> first omit the VIN or mileage, process the note, then dictate only the missing detail and process again.
+                    </div>
+                </div>
+            </aside>
+
+            <main>
+                <div class="panel">
+                    <div class="section-head">
+                        <h2>Technician Voice Transcript</h2>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <div class="format-toggle">
+                                <button class="active" data-format="roman" onclick="setFormat('roman')">Roman</button>
+                                <button data-format="phoneme" onclick="setFormat('phoneme')">Phoneme</button>
+                            </div>
+                            <button class="clear-btn" onclick="clearTranscript()">Clear</button>
+                        </div>
+                    </div>
+                    <div class="transcript-box" id="transcript"></div>
+                </div>
+
+                <div class="panel">
+                    <div class="techline-header">
+                        <div>
+                            <div class="techline-title">Techline Incident Report</div>
+                            <div class="techline-sub">Structured automatically from the technician’s voice note. Fields marked * are mandatory for escalation.</div>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                            <span class="lang-detected" id="detectedLanguage">Language: —</span>
+                            <span class="completeness-pill" id="completenessPill">Waiting for report</span>
+                            <button class="action-btn primary" id="processBtn" onclick="processWithAI()">Populate report</button>
+                            <button class="action-btn" id="reprocessBtn" onclick="processWithAI()">Update</button>
+                        </div>
+                    </div>
+
+                    <div class="ai-status" id="aiStatus">
+                        <div class="spinner" id="aiSpinner"></div>
+                        <span id="aiStatusText">Waiting for a finished workshop dictation…</span>
+                        <span class="edited-badge" id="editedBadge">Edited</span>
+                    </div>
+                    <div class="ai-error" id="aiError"></div>
+
+                    <div class="case-grid" id="techlineForm">
+                        <div class="case-field" data-key="workshop">
+                            <label class="case-label">Workshop / Dealer</label>
+                            <input class="case-input" id="field_workshop" placeholder="e.g. Paris Central Workshop">
+                        </div>
+                        <div class="case-field" data-key="technician">
+                            <label class="case-label">Technician</label>
+                            <input class="case-input" id="field_technician" placeholder="Technician name">
+                        </div>
+
+                        <div class="case-field" data-key="vehicle_model">
+                            <label class="case-label">Vehicle model <span class="required-star">*</span></label>
+                            <input class="case-input" id="field_vehicle_model" placeholder="Model / variant / model year">
+                        </div>
+                        <div class="case-field" data-key="vin">
+                            <label class="case-label">VIN <span class="required-star">*</span></label>
+                            <input class="case-input" id="field_vin" placeholder="Vehicle identification number">
+                        </div>
+
+                        <div class="case-field" data-key="mileage">
+                            <label class="case-label">Mileage <span class="required-star">*</span></label>
+                            <input class="case-input" id="field_mileage" placeholder="e.g. 42,350 km">
+                        </div>
+                        <div class="case-field" data-key="dtc_codes">
+                            <label class="case-label">DTC / fault codes</label>
+                            <input class="case-input" id="field_dtc_codes" placeholder="e.g. P0302, U0121">
+                        </div>
+
+                        <div class="case-field full" data-key="customer_complaint">
+                            <label class="case-label">Customer complaint <span class="required-star">*</span></label>
+                            <textarea class="case-textarea" id="field_customer_complaint" placeholder="What the customer reported"></textarea>
+                        </div>
+
+                        <div class="case-field full" data-key="symptoms_conditions">
+                            <label class="case-label">Symptom & reproduction conditions <span class="required-star">*</span></label>
+                            <textarea class="case-textarea" id="field_symptoms_conditions" placeholder="Observed symptom, speed, temperature, load, frequency, warning lamps, etc."></textarea>
+                        </div>
+
+                        <div class="case-field full" data-key="diagnostics_performed">
+                            <label class="case-label">Diagnostics performed <span class="required-star">*</span></label>
+                            <textarea class="case-textarea" id="field_diagnostics_performed" placeholder="Tests, measurements, scans and checks already completed"></textarea>
+                        </div>
+
+                        <div class="case-field full" data-key="actions_taken">
+                            <label class="case-label">Repairs / actions already taken</label>
+                            <textarea class="case-textarea" id="field_actions_taken" placeholder="Parts changed, reset, software update, adjustment, road test, etc."></textarea>
+                        </div>
+
+                        <div class="case-field" data-key="current_status">
+                            <label class="case-label">Current vehicle status <span class="required-star">*</span></label>
+                            <textarea class="case-textarea" id="field_current_status" placeholder="Issue present? Vehicle drivable? At workshop?"></textarea>
+                        </div>
+                        <div class="case-field" data-key="safety_impact">
+                            <label class="case-label">Safety / drivability impact</label>
+                            <textarea class="case-textarea" id="field_safety_impact" placeholder="Safety concern, immobilized, reduced performance, none stated"></textarea>
+                        </div>
+
+                        <div class="case-field full" data-key="escalation_reason">
+                            <label class="case-label">Reason for Techline escalation <span class="required-star">*</span></label>
+                            <textarea class="case-textarea" id="field_escalation_reason" placeholder="Why the workshop cannot resolve locally / specific assistance requested"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="followup-box" id="followupBox">
+                        <div class="followup-title">Missing mandatory information</div>
+                        <div class="followup-question" id="followupQuestion"></div>
+                        <div class="missing-tags" id="missingTags"></div>
+                    </div>
+
+                    <div class="techline-summary" id="techlineSummaryBox" style="display:none;">
+                        <div class="techline-summary-title">Techline-ready case summary</div>
+                        <div class="techline-summary-body" id="techlineSummary"></div>
+                    </div>
+
+                    <!-- Legacy hidden nodes retained so existing helper functions remain harmless -->
+                    <div class="hidden-legacy">
+                        <div id="formattedOutput" contenteditable="true"></div>
+                        <div id="summaryOutput" contenteditable="true"></div>
+                        <div id="actionsList"></div>
+                        <input id="customActionInput">
+                        <button id="customActionBtn"></button>
+                    </div>
+                </div>
+
+                <div class="log-section">
+                    <button class="log-toggle" onclick="toggleLog()">Toggle debug log</button>
+                    <div class="log-box" id="logBox"></div>
+                </div>
+            </main>
+        </div>
+
+        <div class="footer-credit">Powered by Mihup Multilingual ASR + AI · Automotive Techline Innovation Demo · <a href="https://www.mihup.ai" target="_blank" rel="noopener">www.mihup.ai</a></div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Settings modal -->
+    <div class="modal-overlay" id="settingsOverlay">
+        <div class="modal">
+            <h3>AI settings</h3>
+            <p class="modal-sub">Used to extract automotive incident details, validate mandatory Techline fields, and generate follow-up questions from the workshop transcript.</p>
+
+            <div class="field-group">
+                <label class="field-label" for="apiKeyInput">AI API key</label>
+                <input type="password" id="apiKeyInput" placeholder="AIza...">
+                <p class="field-hint">Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Stored only in this browser (localStorage).</p>
+            </div>
+
+            <div class="field-group">
+                <label class="field-label" for="modelSelect">Model</label>
+                <select id="modelSelect">
+                    <option value="gemini-3.6-flash">gemini-3.6-flash (recommended, latest)</option>
+                    <option value="gemini-3.5-flash">gemini-3.5-flash (most intelligent, slower)</option>
+                    <option value="gemini-3.5-flash-lite">gemini-3.5-flash-lite (fastest, cheapest)</option>
+                    <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite</option>
+                </select>
+            </div>
+
+            <div class="field-group">
+                <label class="field-label" for="promptInput">OEM-specific extraction instructions (optional)</label>
+                <input type="text" id="promptInput" placeholder="e.g. use OEM-specific field names or mandatory fields">
+                <p class="field-hint">Optional OEM-specific rules appended to the default automotive incident extraction prompt.</p>
+            </div>
+
+            <div class="modal-actions">
+                <span class="save-confirm" id="saveConfirm">Saved ✓</span>
+                <button class="modal-btn" onclick="closeSettings()">Close</button>
+                <button class="modal-btn save" onclick="saveSettings()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Config ---
+        const WS_URL = 'ws://122.176.24.165:6898/api/v1/asr/ws';
+        // NOTE: this currently talks to Google's Generative Language API under the hood.
+        // Swap AI_ENDPOINT / the request+response shape in processWithAI() if you move to a different LLM provider later.
+        const AI_ENDPOINT = (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+        // --- State ---
+        let ws = null;
+        let mediaStream = null;
+        let audioContext = null;
+        let processor = null;
+        let analyser = null;
+        let isRecording = false;
+        let currentFormat = 'roman';
+        let confirmedSegments = [];
+        let currentPartial = null;
+        let animFrameId = null;
+        let safetyTimeoutId = null;
+        let eosTimeoutId = null;
+
+        // --- AI settings (persisted in localStorage) ---
+        const VALID_MODELS = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
+
+        // Reads the new key, falling back to (and migrating from) the old pre-rename key name.
+        function readPersisted(newKey, oldKey) {
+            const val = localStorage.getItem(newKey);
+            if (val !== null) return val;
+            const oldVal = localStorage.getItem(oldKey);
+            if (oldVal !== null) {
+                localStorage.setItem(newKey, oldVal);
+                return oldVal;
+            }
+            return null;
+        }
+
+        let aiApiKey = readPersisted('mihup_ai_api_key', 'mihup_gemini_api_key') || '';
+        let aiModel = readPersisted('mihup_ai_model', 'mihup_gemini_model') || 'gemini-3.6-flash';
+        // Migrate away from old/retired model names saved by earlier versions of this page.
+        if (!VALID_MODELS.includes(aiModel)) {
+            aiModel = 'gemini-3.6-flash';
+            localStorage.setItem('mihup_ai_model', aiModel);
+        }
+        let aiExtraPrompt = readPersisted('mihup_ai_extra_prompt', 'mihup_gemini_extra_prompt') || '';
+        let autoProcessEnabled = localStorage.getItem('mihup_auto_process') !== 'off';
+        let lastProcessedTextHash = '';
+
+        // --- VAD (energy-based, RMS over the analyser's time-domain buffer) ---
+        // Auto-stops the mic after the user has spoken and then fallen silent
+        // for VAD_SILENCE_MS. Threshold is calibrated for typical close-mic
+        // speech with browser AGC on; tweak if it false-triggers.
+        let vadEnabled = true;
+        let vadHasSpoken = false;
+        let vadLastSpeechMs = 0;
+        let vadStopping = false;
+        const VAD_RMS_THRESHOLD = 0.018;
+        const VAD_SILENCE_MS = 1200;
+        const VAD_MIN_SPEECH_MS = 250; // require sustained speech before arming auto-stop
+        let vadSpeechAccumMs = 0;
+        let vadLastTickMs = 0;
+        let vadBuf = null; // reused Uint8Array
+
+        // Character-level diffing state.
+        // Tracks each rendered char so only NEW chars animate in,
+        // existing chars stay put (no flicker), and revoked chars
+        // (e.g. partial corrections) get removed cleanly.
+        let renderedChars = []; // [{ char, kind: 'final'|'partial', el }]
+
+        // --- Elements ---
+        const micBtn = document.getElementById('micBtn');
+        const micLabel = document.getElementById('micLabel');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const sessionIdEl = document.getElementById('sessionId');
+        const transcriptBox = document.getElementById('transcript');
+        const visualizer = document.getElementById('visualizer');
+        const logBox = document.getElementById('logBox');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsBtnLabel = document.getElementById('settingsBtnLabel');
+        const settingsOverlay = document.getElementById('settingsOverlay');
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const modelSelect = document.getElementById('modelSelect');
+        const promptInput = document.getElementById('promptInput');
+        const saveConfirm = document.getElementById('saveConfirm');
+        const processBtn = document.getElementById('processBtn');
+        const reprocessBtn = document.getElementById('reprocessBtn');
+        const editedBadge = document.getElementById('editedBadge');
+        const aiStatusText = document.getElementById('aiStatusText');
+        const aiSpinner = document.getElementById('aiSpinner');
+        const aiError = document.getElementById('aiError');
+        const formattedOutput = document.getElementById('formattedOutput');
+        const summaryOutput = document.getElementById('summaryOutput');
+        const actionsList = document.getElementById('actionsList');
+        const toastContainer = document.getElementById('toastContainer');
+        const customActionInput = document.getElementById('customActionInput');
+        const customActionBtn = document.getElementById('customActionBtn');
+        const autoProcessSwitch = document.getElementById('autoProcessSwitch');
+
+        const detectedLanguageEl = document.getElementById('detectedLanguage');
+        const completenessPill = document.getElementById('completenessPill');
+        const followupBox = document.getElementById('followupBox');
+        const followupQuestion = document.getElementById('followupQuestion');
+        const missingTags = document.getElementById('missingTags');
+        const techlineSummaryBox = document.getElementById('techlineSummaryBox');
+        const techlineSummary = document.getElementById('techlineSummary');
+
+        const TECHLINE_FIELDS = [
+            'workshop','technician','vehicle_model','vin','mileage','dtc_codes',
+            'customer_complaint','symptoms_conditions','diagnostics_performed',
+            'actions_taken','current_status','safety_impact','escalation_reason'
+        ];
+        const REQUIRED_TECHLINE_FIELDS = [
+            'vehicle_model','vin','mileage','customer_complaint','symptoms_conditions',
+            'diagnostics_performed','current_status','escalation_reason'
+        ];
+        const FIELD_LABELS = {
+            workshop:'Workshop / Dealer', technician:'Technician', vehicle_model:'Vehicle model',
+            vin:'VIN', mileage:'Mileage', dtc_codes:'DTC / fault codes',
+            customer_complaint:'Customer complaint', symptoms_conditions:'Symptom & reproduction conditions',
+            diagnostics_performed:'Diagnostics performed', actions_taken:'Repairs / actions already taken',
+            current_status:'Current vehicle status', safety_impact:'Safety / drivability impact',
+            escalation_reason:'Reason for Techline escalation'
+        };
+
+        function populateTechlineForm(fields) {
+            TECHLINE_FIELDS.forEach(key => {
+                const el = document.getElementById('field_' + key);
+                if (!el) return;
+                const value = fields && fields[key] != null ? String(fields[key]).trim() : '';
+                if (value && value.toLowerCase() !== 'not stated' && value.toLowerCase() !== 'unknown') {
+                    el.value = value;
+                }
+            });
+        }
+
+        function renderTechlineValidation(missing, promptText, complete, language, summary) {
+            const missingSet = new Set(Array.isArray(missing) ? missing : []);
+            document.querySelectorAll('#techlineForm .case-field').forEach(w => {
+                w.classList.toggle('missing', missingSet.has(w.dataset.key));
+            });
+
+            detectedLanguageEl.textContent = 'Language: ' + (language || 'Detected');
+            completenessPill.classList.remove('complete','missing');
+
+            if (complete) {
+                completenessPill.textContent = 'Ready for Techline';
+                completenessPill.classList.add('complete');
+                followupBox.classList.remove('visible');
+            } else {
+                completenessPill.textContent = `${missingSet.size} mandatory field${missingSet.size === 1 ? '' : 's'} missing`;
+                completenessPill.classList.add('missing');
+                followupQuestion.textContent = promptText || 'Please provide the missing mandatory information.';
+                missingTags.innerHTML = '';
+                [...missingSet].forEach(k => {
+                    const tag = document.createElement('span');
+                    tag.className = 'missing-tag';
+                    tag.textContent = FIELD_LABELS[k] || k;
+                    missingTags.appendChild(tag);
+                });
+                followupBox.classList.add('visible');
+            }
+
+            if (summary) {
+                techlineSummary.textContent = summary;
+                techlineSummaryBox.style.display = 'block';
+            } else {
+                techlineSummaryBox.style.display = 'none';
+            }
+        }
+
+
+        const NUM_BARS = 48;
+        for (let i = 0; i < NUM_BARS; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'vis-bar';
+            bar.style.height = '3px';
+            visualizer.appendChild(bar);
+        }
+        const visBars = visualizer.querySelectorAll('.vis-bar');
+
+        // --- Manual-edit tracking for the Formatted/Summary cards ---
+        // Both cards are contenteditable so the user can fix ASR/AI mistakes
+        // by hand. Any edit flips a "dirty" flag and shows a small badge
+        // prompting the user to hit Reprocess so Summary/Actions stay
+        // aligned with whatever they just changed.
+        let contentDirty = false;
+        function markContentDirty() {
+            if (!contentDirty) {
+                contentDirty = true;
+                editedBadge.classList.add('visible');
+            }
+        }
+        function clearContentDirty() {
+            contentDirty = false;
+            editedBadge.classList.remove('visible');
+        }
+        formattedOutput.addEventListener('input', markContentDirty);
+        summaryOutput.addEventListener('input', markContentDirty);
+
+        // --- Init settings UI from storage ---
+        function refreshSettingsButton() {
+            if (!aiApiKey) {
+                settingsBtn.classList.add('needs-key');
+                settingsBtnLabel.textContent = 'Add AI key';
+            } else {
+                settingsBtn.classList.remove('needs-key');
+                settingsBtnLabel.textContent = 'AI settings';
+            }
+        }
+        autoProcessSwitch.classList.toggle('on', autoProcessEnabled);
+        refreshSettingsButton();
+
+        function openSettings() {
+            apiKeyInput.value = aiApiKey;
+            modelSelect.value = aiModel;
+            promptInput.value = aiExtraPrompt;
+            saveConfirm.classList.remove('visible');
+            settingsOverlay.classList.add('visible');
+        }
+
+        function closeSettings() {
+            settingsOverlay.classList.remove('visible');
+        }
+
+        settingsOverlay.addEventListener('click', (e) => {
+            if (e.target === settingsOverlay) closeSettings();
+        });
+
+        function saveSettings() {
+            aiApiKey = apiKeyInput.value.trim();
+            aiModel = modelSelect.value;
+            aiExtraPrompt = promptInput.value.trim();
+            localStorage.setItem('mihup_ai_api_key', aiApiKey);
+            localStorage.setItem('mihup_ai_model', aiModel);
+            localStorage.setItem('mihup_ai_extra_prompt', aiExtraPrompt);
+            refreshSettingsButton();
+            saveConfirm.classList.add('visible');
+            setTimeout(() => saveConfirm.classList.remove('visible'), 1600);
+            addLog('info', 'AI settings saved');
+        }
+
+        function toggleAutoProcess() {
+            autoProcessEnabled = !autoProcessEnabled;
+            autoProcessSwitch.classList.toggle('on', autoProcessEnabled);
+            localStorage.setItem('mihup_auto_process', autoProcessEnabled ? 'on' : 'off');
+            addLog('info', `Auto-fill Techline report: ${autoProcessEnabled ? 'enabled' : 'disabled'}`);
+        }
+
+        // --- Format toggle ---
+        function setFormat(fmt) {
+            currentFormat = fmt;
+            document.querySelectorAll('.format-toggle button').forEach(b => {
+                b.classList.toggle('active', b.dataset.format === fmt);
+            });
+            renderedChars = [];
+            transcriptBox.innerHTML = '';
+            renderTranscript();
+        }
+
+        // --- Transcript rendering with character-level diffing ---
+        // Each character is its own <span class="char">. New chars get a
+        // staggered fade-in so text appears to type itself in. Existing
+        // chars are never re-rendered, preventing flicker as partials
+        // update on every audio frame.
+        function renderTranscript() {
+            // Build target char list. Final segments get a trailing space
+            // so segment boundaries are visible even if the server omits them.
+            const target = [];
+            for (const seg of confirmedSegments) {
+                const text = getFieldByFormat(seg);
+                if (!text) continue;
+                for (const ch of text) target.push({ char: ch, kind: 'final' });
+                target.push({ char: ' ', kind: 'final' });
+            }
+            if (currentPartial) {
+                const text = getFieldByFormat(currentPartial);
+                if (text) {
+                    for (const ch of text) target.push({ char: ch, kind: 'partial' });
+                }
+            }
+
+            // Find longest common prefix by character
+            let common = 0;
+            const maxCommon = Math.min(renderedChars.length, target.length);
+            while (common < maxCommon && renderedChars[common].char === target[common].char) {
+                common++;
+            }
+
+            // Remove tail chars that no longer match (e.g. partial revised)
+            while (renderedChars.length > common) {
+                const last = renderedChars.pop();
+                if (last.el && last.el.parentNode) last.el.parentNode.removeChild(last.el);
+            }
+
+            // Upgrade kind on common prefix (partial → final) without re-animating
+            for (let i = 0; i < common; i++) {
+                const cur = renderedChars[i];
+                const tgt = target[i];
+                if (cur.kind !== tgt.kind) {
+                    cur.kind = tgt.kind;
+                    cur.el.classList.remove('partial', 'final');
+                    cur.el.classList.add(tgt.kind);
+                }
+            }
+
+            // Append new chars with staggered fade-in (typewriter feel).
+            // Stagger is capped so a long burst still finishes promptly.
+            const STAGGER_MS = 18;
+            const STAGGER_CAP_MS = 240;
+            for (let i = common; i < target.length; i++) {
+                const tgt = target[i];
+                const span = document.createElement('span');
+                span.className = `char ${tgt.kind}`;
+                span.textContent = tgt.char;
+                const delay = Math.min((i - common) * STAGGER_MS, STAGGER_CAP_MS);
+                if (delay > 0) span.style.animationDelay = `${delay}ms`;
+                transcriptBox.appendChild(span);
+                renderedChars.push({ char: tgt.char, kind: tgt.kind, el: span });
+            }
+
+            const nearBottom =
+                transcriptBox.scrollHeight - transcriptBox.scrollTop - transcriptBox.clientHeight < 80;
+            if (nearBottom) transcriptBox.scrollTop = transcriptBox.scrollHeight;
+        }
+
+        function getFieldByFormat(data) {
+            if (currentFormat === 'roman') return data.roman || data.phoneme || '';
+            return data.phoneme || '';
+        }
+
+        function clearTranscript() {
+            confirmedSegments = [];
+            currentPartial = null;
+            renderedChars = [];
+            transcriptBox.innerHTML = '';
+            TECHLINE_FIELDS.forEach(key => {
+                const el = document.getElementById('field_' + key);
+                if (el) el.value = '';
+            });
+            document.querySelectorAll('#techlineForm .case-field').forEach(w => w.classList.remove('missing'));
+            formattedOutput.textContent = '';
+            summaryOutput.textContent = '';
+            actionsList.innerHTML = '';
+            customActionInput.value = '';
+            aiError.classList.remove('visible');
+            aiStatusText.textContent = 'Waiting for a finished workshop dictation…';
+            detectedLanguageEl.textContent = 'Language: —';
+            completenessPill.textContent = 'Waiting for report';
+            completenessPill.classList.remove('complete','missing');
+            followupBox.classList.remove('visible');
+            missingTags.innerHTML = '';
+            followupQuestion.textContent = '';
+            techlineSummary.textContent = '';
+            techlineSummaryBox.style.display = 'none';
+            lastProcessedTextHash = '';
+            clearContentDirty();
+        }
+
+        // --- WebSocket ---
+        function connectWS() {
+            return new Promise((resolve, reject) => {
+                addLog('info', `Connecting to ${WS_URL}...`);
+
+                ws = new WebSocket(WS_URL);
+                ws.binaryType = 'arraybuffer';
+
+                ws.onopen = () => {
+                    setStatus('connected', 'Connected');
+                    addLog('info', 'WebSocket connected');
+                    resolve();
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        handleMessage(msg);
+                    } catch (e) {
+                        addLog('error', `Parse error: ${e.message}`);
+                    }
+                };
+
+                ws.onerror = (e) => {
+                    setStatus('error', 'Connection error');
+                    addLog('error', 'WebSocket error');
+                    reject(e);
+                };
+
+                ws.onclose = (e) => {
+                    setStatus('', 'Disconnected');
+                    addLog('info', `WebSocket closed (code: ${e.code})`);
+                    ws = null;
+                };
+            });
+        }
+
+        function handleMessage(msg) {
+            if (msg.type === 'session') {
+                sessionIdEl.textContent = `Session: ${msg.session_id}`;
+                addLog('info', `Session: ${msg.session_id}`);
+                return;
+            }
+
+            if (msg.type === 'error' || msg.error) {
+                addLog('error', `Server error: ${msg.error}`);
+                return;
+            }
+
+            addLog('', `Result: final=${msg.is_final} eos=${msg.is_end_of_stream} phoneme="${msg.phoneme || ''}" ts=${msg.timestamp_ms}ms`);
+
+            if (msg.is_end_of_stream) {
+                if (msg.phoneme) {
+                    currentPartial = null;
+                    confirmedSegments.push({ phoneme: msg.phoneme, mixed: msg.mixed, roman: msg.roman });
+                }
+                renderTranscript();
+                micLabel.textContent = 'Click to start';
+                setStatus('', 'Done');
+
+                if (safetyTimeoutId) {
+                    clearTimeout(safetyTimeoutId);
+                    safetyTimeoutId = null;
+                }
+
+                eosTimeoutId = setTimeout(() => {
+                    eosTimeoutId = null;
+                    if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+                }, 2000);
+
+                // Dictation finished — hand it to the AI for formatting/summary/actions.
+                if (autoProcessEnabled) {
+                    processWithAI();
+                } else {
+                    aiStatusText.textContent = 'Dictation finished. Click "Process now" to format, summarize & find actions.';
+                }
+                return;
+            }
+
+            if (msg.is_final) {
+                confirmedSegments.push({ phoneme: msg.phoneme, mixed: msg.mixed, roman: msg.roman });
+                currentPartial = null;
+            } else {
+                currentPartial = { phoneme: msg.phoneme, mixed: msg.mixed, roman: msg.roman };
+            }
+
+            renderTranscript();
+        }
+
+        // --- Audio capture ---
+        async function startAudio() {
+            if (!mediaStream || mediaStream.getTracks().every(t => t.readyState === 'ended')) {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        sampleRate: 16000,
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                    }
+                });
+            }
+
+            audioContext = new AudioContext({ sampleRate: 16000 });
+            const source = audioContext.createMediaStreamSource(mediaStream);
+
+            analyser = audioContext.createAnalyser();
+            // 1024 gives ~64ms time-domain window at 16kHz — stable enough for RMS-based VAD
+            // while still leaving 512 frequency bins for the visualizer.
+            analyser.fftSize = 1024;
+            source.connect(analyser);
+
+            const bufferSize = 4096;
+            processor = audioContext.createScriptProcessor(bufferSize, 1, 1);
+            processor.onaudioprocess = (e) => {
+                if (!isRecording || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+                const float32Data = e.inputBuffer.getChannelData(0);
+
+                const int16 = new Int16Array(float32Data.length);
+                for (let i = 0; i < float32Data.length; i++) {
+                    const s = Math.max(-1, Math.min(1, float32Data[i]));
+                    int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                }
+
+                ws.send(int16.buffer);
+            };
+
+            source.connect(processor);
+            processor.connect(audioContext.destination);
+
+            startVisualizer();
+        }
+
+        function stopAudio() {
+            stopVisualizer();
+
+            if (processor) { processor.disconnect(); processor = null; }
+            if (analyser) { analyser.disconnect(); analyser = null; }
+            if (audioContext) { audioContext.close(); audioContext = null; }
+        }
+
+        let sentHeader = false;
+
+        function buildWavChunk(int16Data) {
+            if (sentHeader) return int16Data.buffer;
+
+            sentHeader = true;
+            const sampleRate = 16000;
+            const numChannels = 1;
+            const bitsPerSample = 16;
+            const dataSize = 0x7FFFFFFF;
+            const headerSize = 44;
+            const buffer = new ArrayBuffer(headerSize + int16Data.byteLength);
+            const view = new DataView(buffer);
+
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, dataSize + 36, true);
+            writeString(view, 8, 'WAVE');
+
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * numChannels * bitsPerSample / 8, true);
+            view.setUint16(32, numChannels * bitsPerSample / 8, true);
+            view.setUint16(34, bitsPerSample, true);
+
+            writeString(view, 36, 'data');
+            view.setUint32(40, dataSize, true);
+
+            new Uint8Array(buffer, headerSize).set(new Uint8Array(int16Data.buffer));
+
+            return buffer;
+        }
+
+        function writeString(view, offset, str) {
+            for (let i = 0; i < str.length; i++) {
+                view.setUint8(offset + i, str.charCodeAt(i));
+            }
+        }
+
+        // --- Visualizer + VAD (share the analyser & RAF loop) ---
+        function startVisualizer() {
+            const freqData = new Uint8Array(analyser.frequencyBinCount);
+            vadBuf = new Uint8Array(analyser.fftSize);
+            const smoothed = new Array(NUM_BARS).fill(0);
+            vadLastTickMs = performance.now();
+            function draw() {
+                animFrameId = requestAnimationFrame(draw);
+
+                // Visualizer
+                analyser.getByteFrequencyData(freqData);
+                const step = Math.floor(freqData.length / NUM_BARS);
+                for (let i = 0; i < NUM_BARS; i++) {
+                    const val = freqData[i * step] || 0;
+                    const target = Math.max(3, (val / 255) * 40);
+                    smoothed[i] = smoothed[i] * 0.6 + target * 0.4;
+                    visBars[i].style.height = `${smoothed[i]}px`;
+                }
+
+                // VAD: compute RMS over the current time-domain window
+                if (vadEnabled && isRecording && !vadStopping) {
+                    analyser.getByteTimeDomainData(vadBuf);
+                    let sumSq = 0;
+                    for (let i = 0; i < vadBuf.length; i++) {
+                        const v = (vadBuf[i] - 128) / 128;
+                        sumSq += v * v;
+                    }
+                    const rms = Math.sqrt(sumSq / vadBuf.length);
+
+                    const now = performance.now();
+                    const dt = now - vadLastTickMs;
+                    vadLastTickMs = now;
+
+                    if (rms > VAD_RMS_THRESHOLD) {
+                        vadLastSpeechMs = now;
+                        if (!vadHasSpoken) {
+                            vadSpeechAccumMs += dt;
+                            if (vadSpeechAccumMs >= VAD_MIN_SPEECH_MS) {
+                                vadHasSpoken = true;
+                                addLog('info', 'VAD: speech detected, auto-stop armed');
+                            }
+                        }
+                    } else if (vadHasSpoken && (now - vadLastSpeechMs) >= VAD_SILENCE_MS) {
+                        vadStopping = true;
+                        addLog('info', `VAD: silence ${VAD_SILENCE_MS}ms — stopping`);
+                        toggleRecording();
+                    }
+                }
+            }
+            draw();
+        }
+
+        function stopVisualizer() {
+            if (animFrameId) {
+                cancelAnimationFrame(animFrameId);
+                animFrameId = null;
+            }
+            visBars.forEach(b => b.style.height = '3px');
+        }
+
+        // --- Main toggle ---
+        async function toggleRecording() {
+            if (isRecording) {
+                isRecording = false;
+                micBtn.classList.remove('recording');
+                micLabel.textContent = 'Finalizing...';
+                setStatus('connected', 'Waiting for final result...');
+
+                stopAudio();
+
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'end' }));
+                }
+
+                safetyTimeoutId = setTimeout(() => {
+                    safetyTimeoutId = null;
+                    if (ws) {
+                        addLog('info', 'Safety timeout — closing WebSocket');
+                        ws.close();
+                    }
+                    micLabel.textContent = 'Click to start';
+                }, 10000);
+            } else {
+                try {
+                    micBtn.disabled = true;
+                    micLabel.textContent = 'Connecting...';
+                    sentHeader = false;
+
+                    if (safetyTimeoutId) { clearTimeout(safetyTimeoutId); safetyTimeoutId = null; }
+                    if (eosTimeoutId) { clearTimeout(eosTimeoutId); eosTimeoutId = null; }
+
+                    currentPartial = null;
+
+                    // Reset VAD state for new session
+                    vadHasSpoken = false;
+                    vadStopping = false;
+                    vadSpeechAccumMs = 0;
+                    vadLastSpeechMs = 0;
+
+                    await connectWS();
+                    await startAudio();
+
+                    const origProcessor = processor;
+                    origProcessor.onaudioprocess = (e) => {
+                        if (!isRecording || !ws || ws.readyState !== WebSocket.OPEN) return;
+                        const float32Data = e.inputBuffer.getChannelData(0);
+                        const int16 = new Int16Array(float32Data.length);
+                        for (let i = 0; i < float32Data.length; i++) {
+                            const s = Math.max(-1, Math.min(1, float32Data[i]));
+                            int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                        }
+                        const chunk = buildWavChunk(int16);
+                        ws.send(chunk);
+                    };
+
+                    isRecording = true;
+                    micBtn.classList.add('recording');
+                    micBtn.disabled = false;
+                    micLabel.textContent = 'Click to stop';
+                    setStatus('recording', 'Recording...');
+                } catch (e) {
+                    micBtn.disabled = false;
+                    micLabel.textContent = 'Click to start';
+                    setStatus('error', `Error: ${e.message || e}`);
+                    addLog('error', `Start failed: ${e.message || e}`);
+                    stopAudio();
+                    if (ws) ws.close();
+                }
+            }
+        }
+
+        // --- AI formatting + summarization + suggested actions ---
+        function buildDictationText() {
+            // Always use the roman (readable) field for LLM processing,
+            // regardless of which format the transcript view is currently showing.
+            return confirmedSegments
+                .map(seg => seg.roman || seg.phoneme || '')
+                .filter(Boolean)
+                .join(' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        const ACTION_TYPES = ['ping', 'create_doc', 'schedule_meeting', 'reminder', 'other'];
+
+        function buildAiPrompt(rawText) {
+            let prompt = `You are an automotive OEM Techline incident-report assistant used by workshop technicians globally.
+
+The technician speaks freely into a smartphone, potentially in French, German, Spanish, Italian, English, or mixed automotive language. The transcript may contain ASR errors, workshop noise artifacts, English technical terms inside another language, vehicle model names, part names, acronyms, measurements and DTC codes.
+
+Your task is NOT to create facts. Extract only information explicitly present in the transcript and map it into a structured Techline escalation report.
+
+Important rules:
+- Preserve VINs, DTC codes, part numbers, measurements, mileage, model names and technical acronyms exactly as well as possible.
+- Never invent a VIN, mileage, DTC, repair, diagnostic result or customer complaint.
+- "Not mentioned" means the field must be an empty string.
+- Translate narrative content into concise professional English for the Techline report, but preserve technical identifiers unchanged.
+- Detect the primary spoken language.
+- The user may dictate additional missing information later. Use all information present in the CURRENT accumulated transcript.
+- Mandatory fields are: vehicle_model, vin, mileage, customer_complaint, symptoms_conditions, diagnostics_performed, current_status, escalation_reason.
+- DTC codes are not mandatory because some incidents have no stored DTC.
+- safety_impact should say "No safety impact stated" only if the technician explicitly states there is no safety concern; otherwise leave empty if not mentioned.
+
+Return ONLY JSON with:
+{
+  "detected_language": "French / English / German / etc.",
+  "fields": {
+    "workshop": "",
+    "technician": "",
+    "vehicle_model": "",
+    "vin": "",
+    "mileage": "",
+    "dtc_codes": "",
+    "customer_complaint": "",
+    "symptoms_conditions": "",
+    "diagnostics_performed": "",
+    "actions_taken": "",
+    "current_status": "",
+    "safety_impact": "",
+    "escalation_reason": ""
+  },
+  "missing_mandatory_fields": ["field_key"],
+  "is_complete": false,
+  "follow_up_prompt": "A short natural question in the SAME LANGUAGE as the technician asking only for the missing mandatory information.",
+  "techline_summary": "A concise professional English escalation summary using only known facts."
+}
+
+For follow_up_prompt:
+- If one field is missing, ask one direct question for that field.
+- If multiple fields are missing, group them naturally into one short prompt.
+- If no mandatory fields are missing, return an empty string and is_complete=true.`;
+
+            if (aiExtraPrompt) {
+                prompt += `\n\nAdditional OEM-specific instructions: ${aiExtraPrompt}`;
+            }
+
+            prompt += `\n\nAccumulated workshop transcript:\n"""\n${rawText}\n"""`;
+            return prompt;
+        }
+
+        function renderFormattedText(container, text, asList) {
+            container.innerHTML = '';
+            if (!text) return;
+            if (asList) {
+                const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+                const ul = document.createElement('ul');
+                let hasBullets = false;
+                lines.forEach(line => {
+                    const cleaned = line.replace(/^[-•*]\s*/, '');
+                    if (line.match(/^[-•*]\s+/)) hasBullets = true;
+                    const li = document.createElement('li');
+                    li.textContent = cleaned;
+                    ul.appendChild(li);
+                });
+                if (hasBullets) {
+                    container.appendChild(ul);
+                    return;
+                }
+            }
+            container.textContent = text;
+        }
+
+        // Minimal inline icon set for action chips (24x24 viewBox, stroke=currentColor).
+        function actionIconSvg(type) {
+            const icons = {
+                ping: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+                create_doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/>',
+                schedule_meeting: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+                reminder: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+                other: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+                done: '<polyline points="20 6 9 17 4 12"/>'
+            };
+            const inner = icons[type] || icons.other;
+            return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
+        }
+
+        function actionCompletedText(type) {
+            switch (type) {
+                case 'ping': return 'Ping sent';
+                case 'create_doc': return 'Doc created';
+                case 'schedule_meeting': return 'Meeting scheduled';
+                case 'reminder': return 'Reminder set';
+                default: return 'Done';
+            }
+        }
+
+        // Toast/snackbar — shows a one-line confirmation when an action chip is clicked.
+        function showToast(message, kind) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'toast-icon';
+            iconSpan.innerHTML = actionIconSvg(kind === 'error' ? 'other' : 'done');
+            const textSpan = document.createElement('span');
+            textSpan.textContent = message;
+            toast.appendChild(iconSpan);
+            toast.appendChild(textSpan);
+            toastContainer.appendChild(toast);
+
+            const DISPLAY_MS = 4200;
+            setTimeout(() => {
+                toast.classList.add('leaving');
+                setTimeout(() => {
+                    if (toast.parentNode) toast.parentNode.removeChild(toast);
+                }, 240);
+            }, DISPLAY_MS);
+        }
+
+        // Placeholder handler — no real integrations wired up yet. Just gives
+        // the user visible confirmation (chip state + toast) that the action
+        // was "triggered" so the UI is ready to be wired to real
+        // Slack/Docs/Calendar calls later.
+        function handleActionClick(btn, action) {
+            if (btn.disabled) return;
+            btn.disabled = true;
+            btn.classList.add('working');
+            const labelEl = btn.querySelector('.action-label');
+            const iconEl = btn.querySelector('.action-icon');
+            const originalLabel = action.label;
+            const confirmation = action.confirmation || `${actionCompletedText(action.type)}: ${originalLabel}`;
+            labelEl.textContent = 'Working…';
+
+            setTimeout(() => {
+                btn.classList.remove('working');
+                btn.classList.add('done');
+                iconEl.innerHTML = actionIconSvg('done');
+                labelEl.textContent = actionCompletedText(action.type);
+                btn.title = confirmation;
+                showToast(confirmation);
+                addLog('info', `Action "${originalLabel}" → ${confirmation} (placeholder — no live integration wired up yet).`);
+            }, 650);
+        }
+
+        // Builds one chip <button> (not yet attached) for an {label, type, confirmation} action.
+        function createActionChip(a) {
+            const type = ACTION_TYPES.includes(a.type) ? a.type : 'other';
+            const btn = document.createElement('button');
+            btn.className = 'action-chip';
+            btn.dataset.type = type;
+
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'action-icon';
+            iconSpan.innerHTML = actionIconSvg(type);
+
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'action-label';
+            labelSpan.textContent = a.label || 'Follow up';
+
+            btn.appendChild(iconSpan);
+            btn.appendChild(labelSpan);
+            btn.onclick = () => handleActionClick(btn, {
+                label: a.label || 'Follow up',
+                type,
+                confirmation: a.confirmation || ''
+            });
+
+            return btn;
+        }
+
+        function renderActions(actions) {
+            actionsList.innerHTML = '';
+            if (!actions || !actions.length) {
+                const p = document.createElement('p');
+                p.className = 'actions-empty';
+                p.textContent = 'No follow-up actions detected in this dictation.';
+                actionsList.appendChild(p);
+                return;
+            }
+
+            actions.forEach(a => actionsList.appendChild(createActionChip(a)));
+        }
+
+        // Appends a single new chip (e.g. from the custom-action box) without
+        // wiping out chips already rendered from the AI's suggestions.
+        function appendActionChip(a) {
+            const emptyMsg = actionsList.querySelector('.actions-empty');
+            if (emptyMsg) emptyMsg.remove();
+            const btn = createActionChip(a);
+            actionsList.appendChild(btn);
+            return btn;
+        }
+
+        async function processWithAI() {
+            const rawText = buildDictationText();
+
+            if (!rawText) {
+                showAiError('There is no workshop transcript yet — dictate the incident first.');
+                return;
+            }
+
+            if (!aiApiKey) {
+                showAiError('Add your AI API key in "AI settings" (top right) to populate the Techline report.');
+                openSettings();
+                return;
+            }
+
+            aiError.classList.remove('visible');
+            processBtn.disabled = true;
+            reprocessBtn.disabled = true;
+            aiSpinner.classList.add('visible');
+            aiStatusText.textContent = 'Extracting vehicle, symptom and diagnostic details…';
+
+            try {
+                const body = {
+                    contents: [{ parts: [{ text: buildAiPrompt(rawText) }] }],
+                    generationConfig: {
+                        temperature: 0.1,
+                        responseMimeType: 'application/json',
+                        responseSchema: {
+                            type: 'OBJECT',
+                            properties: {
+                                detected_language: { type: 'STRING' },
+                                fields: {
+                                    type: 'OBJECT',
+                                    properties: {
+                                        workshop: { type: 'STRING' },
+                                        technician: { type: 'STRING' },
+                                        vehicle_model: { type: 'STRING' },
+                                        vin: { type: 'STRING' },
+                                        mileage: { type: 'STRING' },
+                                        dtc_codes: { type: 'STRING' },
+                                        customer_complaint: { type: 'STRING' },
+                                        symptoms_conditions: { type: 'STRING' },
+                                        diagnostics_performed: { type: 'STRING' },
+                                        actions_taken: { type: 'STRING' },
+                                        current_status: { type: 'STRING' },
+                                        safety_impact: { type: 'STRING' },
+                                        escalation_reason: { type: 'STRING' }
+                                    },
+                                    required: TECHLINE_FIELDS
+                                },
+                                missing_mandatory_fields: {
+                                    type: 'ARRAY',
+                                    items: { type: 'STRING' }
+                                },
+                                is_complete: { type: 'BOOLEAN' },
+                                follow_up_prompt: { type: 'STRING' },
+                                techline_summary: { type: 'STRING' }
+                            },
+                            required: ['detected_language','fields','missing_mandatory_fields','is_complete','follow_up_prompt','techline_summary']
+                        }
+                    }
+                };
+
+                const resp = await fetch(`${AI_ENDPOINT(aiModel)}?key=${encodeURIComponent(aiApiKey)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                if (!resp.ok) {
+                    let detail = '';
+                    try {
+                        const errJson = await resp.json();
+                        detail = errJson?.error?.message || JSON.stringify(errJson);
+                    } catch (_) {
+                        detail = await resp.text();
+                    }
+                    throw new Error(`AI API error (${resp.status}): ${detail}`);
+                }
+
+                const data = await resp.json();
+                const candidate = data?.candidates?.[0];
+                const partText = candidate?.content?.parts?.map(p => p.text || '').join('') || '';
+                if (!partText) throw new Error('AI returned no structured incident report.');
+
+                const parsed = JSON.parse(partText);
+                populateTechlineForm(parsed.fields || {});
+
+                // Recompute missing mandatory fields locally as a safety check.
+                const locallyMissing = REQUIRED_TECHLINE_FIELDS.filter(key => {
+                    const el = document.getElementById('field_' + key);
+                    return !el || !String(el.value || '').trim();
+                });
+                const missing = Array.from(new Set([
+                    ...(Array.isArray(parsed.missing_mandatory_fields) ? parsed.missing_mandatory_fields : []),
+                    ...locallyMissing
+                ])).filter(k => REQUIRED_TECHLINE_FIELDS.includes(k));
+
+                const complete = missing.length === 0;
+                renderTechlineValidation(
+                    missing,
+                    complete ? '' : (parsed.follow_up_prompt || ''),
+                    complete,
+                    parsed.detected_language || '',
+                    parsed.techline_summary || ''
+                );
+
+                aiStatusText.textContent = complete
+                    ? `Report complete · ${new Date().toLocaleTimeString()}`
+                    : `Report updated · ${missing.length} mandatory field${missing.length === 1 ? '' : 's'} still required`;
+                addLog('info', `Techline report extraction complete. Missing: ${missing.join(', ') || 'none'}`);
+                lastProcessedTextHash = rawText;
+            } catch (e) {
+                showAiError(e.message || String(e));
+                aiStatusText.textContent = 'Incident extraction failed.';
+                addLog('error', `AI error: ${e.message || e}`);
+            } finally {
+                processBtn.disabled = false;
+                reprocessBtn.disabled = false;
+                aiSpinner.classList.remove('visible');
+            }
+        }
+
+        // Re-syncs Summary + Suggested Actions with the CURRENT (possibly
+        // hand-edited) Formatted & Organized text, without touching the
+        // formatted text itself — it's treated as final, user-approved copy.
+        function buildReprocessPrompt(formattedText, summaryText) {
+            return `You are a dictation assistant. The user previously had a dictation transcript turned into a formatted note and a summary. They may have hand-edited the formatted note and/or the summary below (fixing names, numbers, wording, etc). Do NOT rewrite the formatted note — treat it as final, user-approved text.
+
+Current formatted note:
+"""
+${formattedText}
+"""
+
+Current summary (may now be out of sync with the formatted note above):
+"""
+${summaryText || '(none yet)'}
+"""
+
+Your job:
+1. "summary": Produce an accurate 3-6 short bullet summary (plain text lines starting with "- ") that reflects the CURRENT formatted note above. If the existing summary already matches, you may keep it close to as-is; if it's out of sync, rewrite it to match.
+2. "actions": Suggest 0-5 concrete follow-up actions implied by the CURRENT formatted note (ping/message someone, create a doc, schedule a meeting, set a reminder, etc). Each needs "label" (instruction-style, under 8 words), "type" (exactly one of: ${ACTION_TYPES.join(', ')}), and "confirmation" (a short one-line past-tense confirmation referencing real names/topics/times from the note, under 12 words — no invented details).
+
+Return ONLY a JSON object with fields "summary" (string) and "actions" (array). No markdown fences, no commentary.`;
+        }
+
+        async function reprocessWithAI() {
+            return processWithAI();
+        }
+
+        function showAiError(msg) {
+            aiError.textContent = msg;
+            aiError.classList.add('visible');
+        }
+
+        // --- Custom action box ---
+        // Lets the user type a follow-up that wasn't among the AI's suggested
+        // actions. Sends the request + current transcript to the AI, gets back
+        // a single {label, type, confirmation} action, and triggers it the
+        // same way a suggested-action chip would.
+        function buildCustomActionPrompt(customText, rawText) {
+            let prompt = `You are a dictation assistant's action-execution helper. Below is a transcript the user dictated (it may be short or empty), followed by a custom follow-up action the user just typed in their own words.
+
+Transcript:
+"""
+${rawText || '(no transcript yet)'}
+"""
+
+User's requested action: "${customText}"
+
+Respond with a single JSON object with exactly three fields:
+- "label": a short, instruction-style label for this action (under 8 words)
+- "type": exactly one of: ${ACTION_TYPES.join(', ')} — pick the closest match, use "other" if none fit well
+- "confirmation": a short one-line confirmation message (under 12 words, past tense) describing that this action was just completed — reference any relevant names/topics/times from the transcript or the user's request. Do not invent details that aren't present in either.
+
+Return ONLY the JSON object. No markdown code fences, no extra commentary.`;
+            return prompt;
+        }
+
+        async function submitCustomAction() {
+            const customText = customActionInput.value.trim();
+            if (!customText) {
+                customActionInput.focus();
+                return;
+            }
+
+            if (!aiApiKey) {
+                showAiError('Add your AI API key in "AI settings" (top right) to trigger custom actions.');
+                openSettings();
+                return;
+            }
+
+            const rawText = buildDictationText();
+            customActionBtn.disabled = true;
+            customActionInput.disabled = true;
+            const originalBtnText = customActionBtn.textContent;
+            customActionBtn.textContent = 'Working…';
+
+            try {
+                const body = {
+                    contents: [{ parts: [{ text: buildCustomActionPrompt(customText, rawText) }] }],
+                    generationConfig: {
+                        temperature: 0.3,
+                        responseMimeType: 'application/json',
+                        responseSchema: {
+                            type: 'OBJECT',
+                            properties: {
+                                label: { type: 'STRING' },
+                                type: { type: 'STRING', enum: ACTION_TYPES },
+                                confirmation: { type: 'STRING' }
+                            },
+                            required: ['label', 'type', 'confirmation']
+                        }
+                    }
+                };
+
+                const resp = await fetch(`${AI_ENDPOINT(aiModel)}?key=${encodeURIComponent(aiApiKey)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                if (!resp.ok) {
+                    let detail = '';
+                    try {
+                        const errJson = await resp.json();
+                        detail = errJson?.error?.message || JSON.stringify(errJson);
+                    } catch (_) {
+                        detail = await resp.text();
+                    }
+                    throw new Error(`AI API error (${resp.status}): ${detail}`);
+                }
+
+                const data = await resp.json();
+                const candidate = data?.candidates?.[0];
+                const partText = candidate?.content?.parts?.map(p => p.text || '').join('') || '';
+                if (!partText) throw new Error('AI returned no content for that action.');
+
+                let parsed;
+                try {
+                    parsed = JSON.parse(partText);
+                } catch (_) {
+                    parsed = { label: customText, type: 'other', confirmation: `Done: ${customText}` };
+                }
+
+                const btn = appendActionChip(parsed);
+                handleActionClick(btn, {
+                    label: parsed.label || customText,
+                    type: ACTION_TYPES.includes(parsed.type) ? parsed.type : 'other',
+                    confirmation: parsed.confirmation || ''
+                });
+
+                customActionInput.value = '';
+                addLog('info', `Custom action submitted: "${customText}"`);
+            } catch (e) {
+                showAiError(e.message || String(e));
+                addLog('error', `Custom action error: ${e.message || e}`);
+            } finally {
+                customActionBtn.disabled = false;
+                customActionInput.disabled = false;
+                customActionBtn.textContent = originalBtnText;
+            }
+        }
+
+        function copyText(elId) {
+            const el = document.getElementById(elId);
+            const text = el.innerText || el.textContent || '';
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(() => {
+                addLog('info', `Copied ${elId} to clipboard`);
+            }).catch(() => {
+                addLog('error', 'Clipboard write failed');
+            });
+        }
+
+        // --- Helpers ---
+        function setStatus(state, text) {
+            statusDot.className = 'status-dot ' + state;
+            statusText.textContent = text;
+        }
+
+        function addLog(type, msg) {
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            const ts = new Date().toLocaleTimeString();
+            entry.textContent = `[${ts}] ${msg}`;
+            logBox.appendChild(entry);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        function toggleLog() {
+            logBox.classList.toggle('visible');
+        }
+
+        function toggleVAD() {
+            vadEnabled = !vadEnabled;
+            document.getElementById('vadSwitch').classList.toggle('on', vadEnabled);
+            document.getElementById('vadHint').textContent = vadEnabled ? `${VAD_SILENCE_MS / 1000}s` : 'off';
+            addLog('info', `VAD: ${vadEnabled ? 'enabled' : 'disabled'}`);
+        }
+    </script>
+</body>
+</html>
