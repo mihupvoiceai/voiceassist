@@ -1261,13 +1261,7 @@
     <div class="modal-overlay" id="settingsOverlay">
         <div class="modal">
             <h3>AI settings</h3>
-            <p class="modal-sub">Used to extract automotive incident details, validate mandatory Techline fields, and generate follow-up questions from the workshop transcript.</p>
-
-            <div class="field-group">
-                <label class="field-label" for="apiKeyInput">AI API key</label>
-                <input type="password" id="apiKeyInput" placeholder="AIza...">
-                <p class="field-hint">Get a free key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Stored only in this browser (localStorage).</p>
-            </div>
+            <p class="modal-sub">Used to extract automotive incident details, validate mandatory Techline fields, and generate follow-up questions from the workshop transcript. Requests go through a secure proxy — no API key needed here.</p>
 
             <div class="field-group">
                 <label class="field-label" for="modelSelect">Model</label>
@@ -1296,9 +1290,11 @@
     <script>
         // --- Config ---
         const WS_URL = 'ws://122.176.24.165:6898/api/v1/asr/ws';
-        // NOTE: this currently talks to Google's Generative Language API under the hood.
-        // Swap AI_ENDPOINT / the request+response shape in processWithAI() if you move to a different LLM provider later.
-        const AI_ENDPOINT = (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+        // NOTE: this now talks to a Cloudflare Worker proxy, which holds the real Gemini
+        // API key server-side and forwards the request. No key ever lives in this page.
+        // Replace with YOUR worker's URL after deploying (see cloudflare-worker.js).
+        const AI_PROXY_BASE = 'https://techline-mihup-proxy.bhaskar-b2e.workers.dev';
+        const AI_ENDPOINT = (model) => `${AI_PROXY_BASE}/api/gemini/${model}`;
 
         // --- State ---
         let ws = null;
@@ -1329,7 +1325,6 @@
             return null;
         }
 
-        let aiApiKey = readPersisted('mihup_ai_api_key', 'mihup_gemini_api_key') || '';
         let aiModel = readPersisted('mihup_ai_model', 'mihup_gemini_model') || 'gemini-3.6-flash';
         // Migrate away from old/retired model names saved by earlier versions of this page.
         if (!VALID_MODELS.includes(aiModel)) {
@@ -1373,7 +1368,6 @@
         const settingsBtn = document.getElementById('settingsBtn');
         const settingsBtnLabel = document.getElementById('settingsBtnLabel');
         const settingsOverlay = document.getElementById('settingsOverlay');
-        const apiKeyInput = document.getElementById('apiKeyInput');
         const modelSelect = document.getElementById('modelSelect');
         const promptInput = document.getElementById('promptInput');
         const saveConfirm = document.getElementById('saveConfirm');
@@ -1494,19 +1488,13 @@
 
         // --- Init settings UI from storage ---
         function refreshSettingsButton() {
-            if (!aiApiKey) {
-                settingsBtn.classList.add('needs-key');
-                settingsBtnLabel.textContent = 'Add AI key';
-            } else {
-                settingsBtn.classList.remove('needs-key');
-                settingsBtnLabel.textContent = 'AI settings';
-            }
+            settingsBtn.classList.remove('needs-key');
+            settingsBtnLabel.textContent = 'AI settings';
         }
         autoProcessSwitch.classList.toggle('on', autoProcessEnabled);
         refreshSettingsButton();
 
         function openSettings() {
-            apiKeyInput.value = aiApiKey;
             modelSelect.value = aiModel;
             promptInput.value = aiExtraPrompt;
             saveConfirm.classList.remove('visible');
@@ -1522,10 +1510,8 @@
         });
 
         function saveSettings() {
-            aiApiKey = apiKeyInput.value.trim();
             aiModel = modelSelect.value;
             aiExtraPrompt = promptInput.value.trim();
-            localStorage.setItem('mihup_ai_api_key', aiApiKey);
             localStorage.setItem('mihup_ai_model', aiModel);
             localStorage.setItem('mihup_ai_extra_prompt', aiExtraPrompt);
             refreshSettingsButton();
@@ -2184,12 +2170,6 @@ For follow_up_prompt:
                 return;
             }
 
-            if (!aiApiKey) {
-                showAiError('Add your AI API key in "AI settings" (top right) to populate the Techline report.');
-                openSettings();
-                return;
-            }
-
             aiError.classList.remove('visible');
             processBtn.disabled = true;
             reprocessBtn.disabled = true;
@@ -2238,7 +2218,7 @@ For follow_up_prompt:
                     }
                 };
 
-                const resp = await fetch(`${AI_ENDPOINT(aiModel)}?key=${encodeURIComponent(aiApiKey)}`, {
+                const resp = await fetch(`${AI_ENDPOINT(aiModel)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
@@ -2361,12 +2341,6 @@ Return ONLY the JSON object. No markdown code fences, no extra commentary.`;
                 return;
             }
 
-            if (!aiApiKey) {
-                showAiError('Add your AI API key in "AI settings" (top right) to trigger custom actions.');
-                openSettings();
-                return;
-            }
-
             const rawText = buildDictationText();
             customActionBtn.disabled = true;
             customActionInput.disabled = true;
@@ -2391,7 +2365,7 @@ Return ONLY the JSON object. No markdown code fences, no extra commentary.`;
                     }
                 };
 
-                const resp = await fetch(`${AI_ENDPOINT(aiModel)}?key=${encodeURIComponent(aiApiKey)}`, {
+                const resp = await fetch(`${AI_ENDPOINT(aiModel)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
